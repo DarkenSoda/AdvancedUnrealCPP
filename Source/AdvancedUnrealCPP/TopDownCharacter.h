@@ -12,6 +12,8 @@ class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
+class UChildActorComponent;
+class UAnimMontage;
 
 UCLASS()
 class ADVANCEDUNREALCPP_API ATopDownCharacter : public ACharacter, public IHealInterface
@@ -32,8 +34,8 @@ protected:
 	virtual void BeginPlay() override;
 
 public:	
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    AWeapon* CurrentWeapon;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+    UChildActorComponent* WeaponComponent;
 
     UPROPERTY(ReplicatedUsing = OnRep_Health, EditAnywhere, BlueprintReadWrite, Category = "Health")
     float Health = 100.f;
@@ -46,14 +48,40 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	void Heal_Implementation(float Amount) override;
 
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
     UFUNCTION()
     void MyHeal(float Amount);
 
-    UFUNCTION(BlueprintCallable)
-    void EquipWeapon();
-    UFUNCTION(BlueprintCallable)
-    void UnequipWeapon();
+    // 3 hit combo system
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+    TArray<UAnimMontage*> AttackMontages;
 
+    UPROPERTY(BlueprintReadWrite, Category = "Combat")
+    int32 ComboIndex = 0;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Combat")
+    bool bIsAttacking = false;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Combat")
+    bool bCanCombo = false;
+
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    void Attack();
+
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    void EnableCombo();
+
+    void PlayAttackMontageShared(int32 Index);
+
+    UFUNCTION(Server, Reliable)
+    void Server_PlayAttackMontage(int32 Index);
+
+    UFUNCTION(NetMulticast, Reliable)
+    void Multicast_PlayAttackMontage(int32 Index);
+
+    UFUNCTION()
+    void OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
     // Same with healing and damaging as sprinting
     UFUNCTION()
@@ -100,14 +128,15 @@ private:
     UPROPERTY(EditAnywhere, Category = "Input")
     UInputAction* MouseLookAction;
 
+    UPROPERTY(EditAnywhere, Category = "Input")
+    UInputAction* AttackAction;
+
     // Movement
     UPROPERTY(EditAnywhere, Category = "Movement")
     float BaseSpeed = 400.f;
 
     UPROPERTY(EditAnywhere, Category = "Movement")
     float SprintMultiplier = 2.f;
-
-
 
 
     bool bIsSprinting = false;

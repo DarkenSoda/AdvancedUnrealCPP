@@ -1,6 +1,5 @@
 #include "TopDownCharacter.h"
 #include "EngineUtils.h"
-
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -12,6 +11,9 @@
 #include "Net/UnrealNetwork.h"
 #include "HealthPickupDelegate.h"
 #include "HealthWidget.h"
+#include "Components/ChildActorComponent.h"
+#include "Weapon.h"
+#include "Animation/AnimInstance.h"
 
 
 // Sets default values
@@ -20,6 +22,10 @@ ATopDownCharacter::ATopDownCharacter()
 	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = true;
 
+	// Weapon Component
+	WeaponComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("WeaponComponent"));
+	WeaponComponent->SetupAttachment(GetMesh(), TEXT("HandGrip_R"));
+	WeaponComponent->SetChildActorClass(AWeapon::StaticClass());
 
 	// Spring arm
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -98,6 +104,12 @@ void ATopDownCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 
 	Input->BindAction(SprintAction, ETriggerEvent::Started, this, &ATopDownCharacter::StartSprint);
 	Input->BindAction(SprintAction, ETriggerEvent::Completed, this, &ATopDownCharacter::StopSprint);
+
+    if (AttackAction)
+    {
+	    Input->BindAction(AttackAction, ETriggerEvent::Started, this, &ATopDownCharacter::Attack);
+    }
+
 	Input->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &ATopDownCharacter::Look);
 
 	// Looking
@@ -221,41 +233,95 @@ void ATopDownCharacter::OnRep_Health()
 	}
 }
 
-// Weapon
-void ATopDownCharacter::EquipWeapon()
+// Combat
+void ATopDownCharacter::Attack()
 {
-	if (!CurrentWeapon) {
-		//Find weapon in the world and equip it
-		for (TActorIterator<AWeapon> It(GetWorld()); It; ++It)
+	if (GetCharacterMovement()->IsFalling()) return;
+
+	if (AttackMontages.Num() == 0) return;
+
+	if (bCanCombo)
+	{
+		bCanCombo = false;
+		ComboIndex++;
+
+		if (ComboIndex < AttackMontages.Num())
 		{
-			if (*It)
-			{
-				CurrentWeapon = *It;
-				break;
-			}
+			PlayAttackMontageShared(ComboIndex);
 		}
 	}
+	else if (!bIsAttacking)
+	{
+		bIsAttacking = true;
+		ComboIndex = 0;
+		bCanCombo = false;
 
-	if (!CurrentWeapon) return;
+		PlayAttackMontageShared(ComboIndex);
+	}
 
-	CurrentWeapon->Equip();
-
-	CurrentWeapon->AttachToComponent(
-		GetMesh(),
-		FAttachmentTransformRules::SnapToTargetNotIncludingScale,
-		TEXT("HandGrip_R")
-	);
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
 }
 
-void ATopDownCharacter::UnequipWeapon()
+void ATopDownCharacter::PlayAttackMontageShared(int32 Index)
 {
-	if (!CurrentWeapon) return;
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && AttackMontages.IsValidIndex(Index))
+	{
+		AnimInstance->Montage_Play(AttackMontages[Index]);
+		
+		FOnMontageEnded EndDelegate;
+		EndDelegate.BindUObject(this, &ATopDownCharacter::OnAttackMontageEnded);
+		AnimInstance->Montage_SetEndDelegate(EndDelegate, AttackMontages[Index]);
+	}
 
-	CurrentWeapon->Unequip();
+	if (!HasAuthority())
+	{
+		Server_PlayAttackMontage(Index);
+	}
+	else
+	{
+		Multicast_PlayAttackMontage(Index);
+	}
+}
 
-	CurrentWeapon->DetachFromActor(
-		FDetachmentTransformRules::KeepWorldTransform
-	);
+void ATopDownCharacter::Server_PlayAttackMontage_Implementation(int32 Index)
+{
+	Multicast_PlayAttackMontage(Index);
+}
+
+void ATopDownCharacter::Multicast_PlayAttackMontage_Implementation(int32 Index)
+{
+	if (IsLocallyControlled()) return;
+
+	bIsAttacking = true;
+	ComboIndex = Index;
+
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && AttackMontages.IsValidIndex(Index))
+	{
+		AnimInstance->Montage_Play(AttackMontages[Index]);
+		
+		FOnMontageEnded EndDelegate;
+		EndDelegate.BindUObject(this, &ATopDownCharacter::OnAttackMontageEnded);
+		AnimInstance->Montage_SetEndDelegate(EndDelegate, AttackMontages[Index]);
+	}
+}
+
+void ATopDownCharacter::EnableCombo()
+{
+	bCanCombo = true;
+	UE_LOG(LogTemp, Warning, TEXT("Notify"));
+}
+
+void ATopDownCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (AttackMontages.Contains(Montage))
+	{
+		bIsAttacking = false;
+		ComboIndex = 0;
+		bCanCombo = false;
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+	}
 }
 
 // Damage
