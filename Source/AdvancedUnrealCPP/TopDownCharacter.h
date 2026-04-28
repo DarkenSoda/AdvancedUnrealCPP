@@ -50,6 +50,8 @@ public:
 
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+    virtual void Jump() override;
+
     UFUNCTION()
     void MyHeal(float Amount);
 
@@ -146,6 +148,7 @@ private:
 
     void StartSprint();
     void StopSprint();
+
 
     // sprinting wasn't working on client so I had to update bIsSprinting on the server
     UFUNCTION(Server, Reliable)

@@ -105,10 +105,10 @@ void ATopDownCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 	Input->BindAction(SprintAction, ETriggerEvent::Started, this, &ATopDownCharacter::StartSprint);
 	Input->BindAction(SprintAction, ETriggerEvent::Completed, this, &ATopDownCharacter::StopSprint);
 
-    if (AttackAction)
-    {
-	    Input->BindAction(AttackAction, ETriggerEvent::Started, this, &ATopDownCharacter::Attack);
-    }
+	if (AttackAction)
+	{
+		Input->BindAction(AttackAction, ETriggerEvent::Started, this, &ATopDownCharacter::Attack);
+	}
 
 	Input->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &ATopDownCharacter::Look);
 
@@ -168,7 +168,7 @@ void ATopDownCharacter::StartSprint()
 	bIsSprinting = true;
 	GetCharacterMovement()->MaxWalkSpeed = BaseSpeed * SprintMultiplier;
 
-	if(!HasAuthority())
+	if (!HasAuthority())
 	{
 		Server_StartSprint();
 	}
@@ -179,7 +179,7 @@ void ATopDownCharacter::StopSprint()
 	bIsSprinting = false;
 	GetCharacterMovement()->MaxWalkSpeed = BaseSpeed;
 
-	if(!HasAuthority())
+	if (!HasAuthority())
 	{
 		Server_StopSprint();
 	}
@@ -193,6 +193,11 @@ void ATopDownCharacter::GetLifetimeReplicatedProps(
 	DOREPLIFETIME(ATopDownCharacter, Health);
 }
 
+void ATopDownCharacter::Jump()
+{
+	if (bIsAttacking) return;
+	Super::Jump();
+}
 
 // Health
 void ATopDownCharacter::Heal_Implementation(float Amount)
@@ -237,29 +242,27 @@ void ATopDownCharacter::OnRep_Health()
 void ATopDownCharacter::Attack()
 {
 	if (GetCharacterMovement()->IsFalling()) return;
-
 	if (AttackMontages.Num() == 0) return;
 
-	if (bCanCombo)
+	if (bIsAttacking)
 	{
-		bCanCombo = false;
-		ComboIndex++;
-
-		if (ComboIndex < AttackMontages.Num())
+		// Only allow combo if the notify fired AND we're not on the last hit
+		if (bCanCombo && ComboIndex < AttackMontages.Num() - 1)
 		{
+			bCanCombo = false;
+			ComboIndex++;
 			PlayAttackMontageShared(ComboIndex);
 		}
+		// If on last hit or combo window not open — do nothing, let it finish
 	}
-	else if (!bIsAttacking)
+	else
 	{
+		// Fresh attack
 		bIsAttacking = true;
-		ComboIndex = 0;
 		bCanCombo = false;
-
+		ComboIndex = 0;
 		PlayAttackMontageShared(ComboIndex);
 	}
-
-	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_None);
 }
 
 void ATopDownCharacter::PlayAttackMontageShared(int32 Index)
@@ -268,7 +271,7 @@ void ATopDownCharacter::PlayAttackMontageShared(int32 Index)
 	if (AnimInstance && AttackMontages.IsValidIndex(Index))
 	{
 		AnimInstance->Montage_Play(AttackMontages[Index]);
-		
+
 		FOnMontageEnded EndDelegate;
 		EndDelegate.BindUObject(this, &ATopDownCharacter::OnAttackMontageEnded);
 		AnimInstance->Montage_SetEndDelegate(EndDelegate, AttackMontages[Index]);
@@ -300,7 +303,7 @@ void ATopDownCharacter::Multicast_PlayAttackMontage_Implementation(int32 Index)
 	if (AnimInstance && AttackMontages.IsValidIndex(Index))
 	{
 		AnimInstance->Montage_Play(AttackMontages[Index]);
-		
+
 		FOnMontageEnded EndDelegate;
 		EndDelegate.BindUObject(this, &ATopDownCharacter::OnAttackMontageEnded);
 		AnimInstance->Montage_SetEndDelegate(EndDelegate, AttackMontages[Index]);
@@ -310,17 +313,21 @@ void ATopDownCharacter::Multicast_PlayAttackMontage_Implementation(int32 Index)
 void ATopDownCharacter::EnableCombo()
 {
 	bCanCombo = true;
-	UE_LOG(LogTemp, Warning, TEXT("Notify"));
 }
 
 void ATopDownCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	if (AttackMontages.Contains(Montage))
+	if (!AttackMontages.IsValidIndex(ComboIndex)) return;
+
+	// If interrupted (i.e. we blended into the next combo hit), ignore the reset
+	if (bInterrupted) return;
+
+	// Only reset if this is actually the current montage finishing naturally
+	if (Montage == AttackMontages[ComboIndex])
 	{
 		bIsAttacking = false;
 		ComboIndex = 0;
 		bCanCombo = false;
-		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
 	}
 }
 
