@@ -4,12 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Weapon.generated.h"
 
-UENUM(BlueprintType)
-enum class EEquipState : uint8
-{
-	Equipped,
-	Unequipped
-};
+class UBoxComponent;
 
 USTRUCT(BlueprintType)
 struct FWeaponData
@@ -18,11 +13,7 @@ struct FWeaponData
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float BaseDamage = 10.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float FireRate = 1.f;
 };
-
 
 UCLASS()
 class ADVANCEDUNREALCPP_API AWeapon : public AActor
@@ -38,13 +29,25 @@ public:
 	UPROPERTY(VisibleAnywhere)
 	UStaticMeshComponent* Mesh;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	UBoxComponent* CollisionBox;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FWeaponData WeaponData;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EEquipState EquipState = EEquipState::Unequipped;
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void EnableWeapon();
 
-	void Equip();
-	void Unequip();
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void DisableWeapon();
 
+protected:
+	virtual void BeginPlay() override;
+
+	UFUNCTION()
+	void OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+private:
+	UPROPERTY()
+	TArray<AActor*> HitActors;
 };

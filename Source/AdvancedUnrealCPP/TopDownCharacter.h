@@ -74,6 +74,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combat")
     void EnableCombo();
 
+    UFUNCTION(BlueprintCallable, Category = "Weapon")
+    void EnableWeaponCollision();
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon")
+    void DisableWeaponCollision();
+
     void PlayAttackMontageShared(int32 Index);
 
     UFUNCTION(Server, Reliable)

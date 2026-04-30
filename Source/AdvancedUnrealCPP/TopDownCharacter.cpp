@@ -51,6 +51,7 @@ ATopDownCharacter::ATopDownCharacter()
 	bUseControllerRotationYaw = false;
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 0.f, 480.f);
 
 	GetCharacterMovement()->MaxWalkSpeed = BaseSpeed;
 }
@@ -319,6 +320,8 @@ void ATopDownCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterr
 {
 	if (!AttackMontages.IsValidIndex(ComboIndex)) return;
 
+	DisableWeaponCollision(); // Ensure it's disabled if montage ends.
+
 	// If interrupted (i.e. we blended into the next combo hit), ignore the reset
 	if (bInterrupted) return;
 
@@ -328,6 +331,30 @@ void ATopDownCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterr
 		bIsAttacking = false;
 		ComboIndex = 0;
 		bCanCombo = false;
+	}
+}
+
+void ATopDownCharacter::EnableWeaponCollision()
+{
+	if (WeaponComponent && WeaponComponent->GetChildActor())
+	{
+		AWeapon* Weapon = Cast<AWeapon>(WeaponComponent->GetChildActor());
+		if (Weapon)
+		{
+			Weapon->EnableWeapon();
+		}
+	}
+}
+
+void ATopDownCharacter::DisableWeaponCollision()
+{
+	if (WeaponComponent && WeaponComponent->GetChildActor())
+	{
+		AWeapon* Weapon = Cast<AWeapon>(WeaponComponent->GetChildActor());
+		if (Weapon)
+		{
+			Weapon->DisableWeapon();
+		}
 	}
 }
 

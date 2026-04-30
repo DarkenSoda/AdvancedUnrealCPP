@@ -3,55 +3,63 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
-#include "Perception/AIPerceptionComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/Character.h"
+#include "TopDownCharacter.h"
 
 AEnemyAIController::AEnemyAIController()
 {
-    PerceptionComp = CreateDefaultSubobject<UAIPerceptionComponent>("Perception");
+	PrimaryActorTick.bCanEverTick = true;
+}
 
-    SightConfig = CreateDefaultSubobject<UAISenseConfig_Sight>("SightConfig");
+void AEnemyAIController::BeginPlay()
+{
+	Super::BeginPlay();
+}
 
-    SightConfig->SightRadius = 1500.f;
-    SightConfig->LoseSightRadius = 1700.f;
-    SightConfig->PeripheralVisionAngleDegrees = 60.f;
+void AEnemyAIController::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	FindClosestPlayer();
+}
 
-    SightConfig->DetectionByAffiliation.bDetectEnemies = true;
-    SightConfig->DetectionByAffiliation.bDetectNeutrals = true;
-    SightConfig->DetectionByAffiliation.bDetectFriendlies = true;
+void AEnemyAIController::FindClosestPlayer()
+{
+	if (!GetBlackboardComponent() || !GetPawn()) return;
 
-    PerceptionComp->ConfigureSense(*SightConfig);
-    PerceptionComp->SetDominantSense(SightConfig->GetSenseImplementation());
+	TArray<AActor*> Players;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ATopDownCharacter::StaticClass(), Players);
 
-    PerceptionComp->OnTargetPerceptionUpdated.AddDynamic(
-        this,
-        &AEnemyAIController::OnTargetDetected
-    );
+	AActor* ClosestPlayer = nullptr;
+	float MinDistance = MAX_flt;
+
+	for (AActor* Player : Players)
+	{
+		float Distance = FVector::Dist(GetPawn()->GetActorLocation(), Player->GetActorLocation());
+		if (Distance < MinDistance)
+		{
+			MinDistance = Distance;
+			ClosestPlayer = Player;
+		}
+	}
+
+	if (ClosestPlayer)
+	{
+		GetBlackboardComponent()->SetValueAsObject("TargetActor", ClosestPlayer);
+	}
+	else
+	{
+		GetBlackboardComponent()->ClearValue("TargetActor");
+	}
 }
 
 void AEnemyAIController::OnPossess(APawn* InPawn)
 {
-    Super::OnPossess(InPawn);
+	Super::OnPossess(InPawn);
 
-    AAIEnemy* Enemy = Cast<AAIEnemy>(InPawn);
-    if (Enemy && Enemy->BehaviorTree)
-    {
-        RunBehaviorTree(Enemy->BehaviorTree);
-    }
-}
-
-void AEnemyAIController::OnTargetDetected(AActor* Actor, FAIStimulus Stimulus)
-{
-    if (!GetBlackboardComponent()) return;
-
-    if (Stimulus.WasSuccessfullySensed())
-    {
-        GetBlackboardComponent()->SetValueAsObject(
-            "TargetActor",
-            Actor
-        );
-    }
-    else
-    {
-        GetBlackboardComponent()->ClearValue("TargetActor");
-    }
+	AAIEnemy* Enemy = Cast<AAIEnemy>(InPawn);
+	if (Enemy && Enemy->BehaviorTree)
+	{
+		RunBehaviorTree(Enemy->BehaviorTree);
+	}
 }

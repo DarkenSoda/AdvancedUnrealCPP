@@ -17,5 +17,17 @@ AAIEnemy::AAIEnemy()
 void AAIEnemy::BeginPlay()
 {
 	Super::BeginPlay();
+	CurrentHealth = MaxHealth;
+}
+
+void AAIEnemy::TakeDamage(float DamageAmount)
+{
+	CurrentHealth -= DamageAmount;
+	if (CurrentHealth <= 0.0f)
+	{
+		Destroy(); // For now, just destroy on death
+
+		// play death action in behavior tree
+	}
 }
 

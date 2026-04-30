@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "AIController.h"
-#include <Perception/AISenseConfig_Sight.h>
 #include "EnemyAIController.generated.h"
 
 UCLASS()
@@ -14,18 +13,10 @@ public:
 	AEnemyAIController();
 
 protected:
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void OnPossess(APawn* InPawn) override;
 
 private:
-	class UBlackboardComponent* BlackboardComp;
-	class UBehaviorTreeComponent* BehaviorTreeComp;
-
-	UPROPERTY(VisibleAnywhere)
-	UAIPerceptionComponent* PerceptionComp;
-
-	UPROPERTY()
-	UAISenseConfig_Sight* SightConfig;
-
-	UFUNCTION()
-	void OnTargetDetected(AActor* Actor, FAIStimulus Stimulus);
+	void FindClosestPlayer();
 };
