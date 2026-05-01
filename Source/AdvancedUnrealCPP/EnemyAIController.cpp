@@ -23,6 +23,22 @@ void AEnemyAIController::Tick(float DeltaTime)
 	FindClosestPlayer();
 }
 
+void AEnemyAIController::OnEnemyDeath()
+{
+	if (GetBlackboardComponent())
+	{
+		GetBlackboardComponent()->SetValueAsBool("IsDead", true);
+	}
+}
+
+void AEnemyAIController::SetAttackRange(float Range)
+{
+	if (GetBlackboardComponent())
+	{
+		GetBlackboardComponent()->SetValueAsFloat("AttackRange", Range);
+	}
+}
+
 void AEnemyAIController::FindClosestPlayer()
 {
 	if (!GetBlackboardComponent() || !GetPawn()) return;
@@ -35,7 +51,13 @@ void AEnemyAIController::FindClosestPlayer()
 
 	for (AActor* Player : Players)
 	{
-		float Distance = FVector::Dist(GetPawn()->GetActorLocation(), Player->GetActorLocation());
+		ATopDownCharacter* TDPlayer = Cast<ATopDownCharacter>(Player);
+		if (TDPlayer && TDPlayer->bIsDead)
+		{
+			continue;
+		}
+
+		float Distance = FVector::DistXY(GetPawn()->GetActorLocation(), Player->GetActorLocation());
 		if (Distance < MinDistance)
 		{
 			MinDistance = Distance;

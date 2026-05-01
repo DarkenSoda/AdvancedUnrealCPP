@@ -15,6 +15,8 @@ class UUserWidget;
 class UChildActorComponent;
 class UAnimMontage;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAllPlayersDeadSignature);
+
 UCLASS()
 class ADVANCEDUNREALCPP_API ATopDownCharacter : public ACharacter, public IHealInterface
 {
@@ -43,6 +45,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
     float MaxHealth = 100.f;
 
+    UPROPERTY(ReplicatedUsing = OnRep_IsDead, VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+    bool bIsDead = false;
+
+    UFUNCTION()
+    void OnRep_IsDead();
+
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnAllPlayersDeadSignature OnAllPlayersDeadDelegate;
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -97,6 +107,9 @@ public:
 
     UFUNCTION(Server, Reliable)
     void Server_ApplyDamage(float Damage);
+    
+    UFUNCTION(Server, Reliable)
+    void Server_DealDamage(AActor* TargetActor, float Damage);
     
     UFUNCTION(Server, Reliable)
     void Server_Heal(float Amount);

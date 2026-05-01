@@ -2,6 +2,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Damageable.h"
+#include "TopDownCharacter.h"
 
 AWeapon::AWeapon()
 {
@@ -43,21 +44,38 @@ void AWeapon::DisableWeapon()
 
 void AWeapon::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (OtherActor && OtherActor != GetOwner() && OtherActor != this)
+	if (OtherActor && OtherActor != GetOwner() && OtherActor != this && OtherActor != GetAttachParentActor())
 	{
 		// Don't hit the weapon's wielder
-		if (GetOwner() && OtherActor == GetInstigator())
+		if ((GetInstigator() && OtherActor == GetInstigator()) || OtherActor == GetOwner() || OtherActor == GetAttachParentActor())
 		{
 			return;
 		}
 
 		if (!HitActors.Contains(OtherActor))
 		{
-			IDamageable* DamageableActor = Cast<IDamageable>(OtherActor);
-			if (DamageableActor)
+			HitActors.Add(OtherActor);
+
+			AActor* WeaponOwner = GetOwner();
+			if (!WeaponOwner) WeaponOwner = GetAttachParentActor();
+			
+			ATopDownCharacter* Char = Cast<ATopDownCharacter>(WeaponOwner ? WeaponOwner : GetInstigator());
+			if (Char)
 			{
-				HitActors.Add(OtherActor);
-				DamageableActor->TakeDamage(WeaponData.BaseDamage);
+				if (Char->IsLocallyControlled())
+				{
+					Char->Server_DealDamage(OtherActor, WeaponData.BaseDamage);
+				}
+				// If not locally controlled, we rely on the client who owns this to send the hit.
+			}
+			else if (HasAuthority())
+			{
+				// Fallback for AI or objects wielding the weapon on the server
+				IDamageable* DamageableActor = Cast<IDamageable>(OtherActor);
+				if (DamageableActor)
+				{
+					DamageableActor->TakeDamage(WeaponData.BaseDamage);
+				}
 			}
 		}
 	}

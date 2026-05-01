@@ -14,7 +14,10 @@
 #include "Components/ChildActorComponent.h"
 #include "Weapon.h"
 #include "Animation/AnimInstance.h"
-
+#include "Components/CapsuleComponent.h"
+#include "Blueprint/UserWidget.h"
+#include "HealthWidget.h"
+#include "Damageable.h"
 
 // Sets default values
 ATopDownCharacter::ATopDownCharacter()
@@ -34,7 +37,6 @@ ATopDownCharacter::ATopDownCharacter()
 	//SpringArm->SetRelativeRotation(FRotator(-60.f, 0.f, 0.f));
 
 	// To make the camera fixed and stop rotation
-	//SpringArm->bDoCollisionTest = false;
 	SpringArm->bUsePawnControlRotation = true;
 	//SpringArm->bInheritPitch = false;
 	//SpringArm->bInheritYaw = false;
@@ -45,7 +47,6 @@ ATopDownCharacter::ATopDownCharacter()
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(SpringArm);
 	Camera->bUsePawnControlRotation = false;
-
 
 	// movement defaults
 	bUseControllerRotationYaw = false;
@@ -186,12 +187,12 @@ void ATopDownCharacter::StopSprint()
 	}
 }
 
-void ATopDownCharacter::GetLifetimeReplicatedProps(
-	TArray<FLifetimeProperty>& OutLifetimeProps) const
+void ATopDownCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ATopDownCharacter, Health);
+	DOREPLIFETIME(ATopDownCharacter, bIsDead);
 }
 
 void ATopDownCharacter::Jump()
@@ -365,6 +366,28 @@ void ATopDownCharacter::ApplyDamage(float Damage)
 	{
 		Health = FMath::Clamp(Health - Damage, 0.f, MaxHealth);
 		OnRep_Health();
+
+		if (Health <= 0.f && !bIsDead)
+		{
+			bIsDead = true;
+			OnRep_IsDead();
+
+			// Check if all players are dead
+			bool bAllDead = true;
+			for (TActorIterator<ATopDownCharacter> It(GetWorld()); It; ++It)
+			{
+				if (!It->bIsDead)
+				{
+					bAllDead = false;
+					break;
+				}
+			}
+
+			if (bAllDead)
+			{
+				OnAllPlayersDeadDelegate.Broadcast();
+			}
+		}
 	}
 	else
 	{
@@ -372,7 +395,36 @@ void ATopDownCharacter::ApplyDamage(float Damage)
 	}
 }
 
+void ATopDownCharacter::OnRep_IsDead()
+{
+	if (bIsDead)
+	{
+		StopAnimMontage();
+		GetCharacterMovement()->DisableMovement();
+
+		if (IsLocallyControlled())
+		{
+			if (APlayerController* PC = Cast<APlayerController>(GetController()))
+			{
+				DisableInput(PC);
+			}
+		}
+	}
+}
+
 void ATopDownCharacter::Server_ApplyDamage_Implementation(float Damage)
 {
 	ApplyDamage(Damage);
+}
+
+void ATopDownCharacter::Server_DealDamage_Implementation(AActor* TargetActor, float Damage)
+{
+	if (TargetActor)
+	{
+		IDamageable* DamageableActor = Cast<IDamageable>(TargetActor);
+		if (DamageableActor)
+		{
+			DamageableActor->TakeDamage(Damage);
+		}
+	}
 }

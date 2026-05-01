@@ -12,6 +12,9 @@ class ADVANCEDUNREALCPP_API AEnemyAIController : public AAIController
 public:
 	AEnemyAIController();
 
+	void OnEnemyDeath();
+	void SetAttackRange(float Range);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
