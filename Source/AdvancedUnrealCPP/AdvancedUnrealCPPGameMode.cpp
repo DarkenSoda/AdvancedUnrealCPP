@@ -5,4 +5,15 @@
 AAdvancedUnrealCPPGameMode::AAdvancedUnrealCPPGameMode()
 {
 	// stub
+    bUseSeamlessTravel = true;
+}
+
+
+void AAdvancedUnrealCPPGameMode::TravelToLevel(const FString& MapPath)
+{
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        World->ServerTravel(MapPath, false);
+    }
 }

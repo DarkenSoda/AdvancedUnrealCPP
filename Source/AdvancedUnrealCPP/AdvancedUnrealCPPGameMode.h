@@ -18,6 +18,9 @@ public:
 	
 	/** Constructor */
 	AAdvancedUnrealCPPGameMode();
+
+	UFUNCTION(BlueprintCallable, Category = "Travel")
+	void TravelToLevel(const FString& MapPath);
 };
 
 
